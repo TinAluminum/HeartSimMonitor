@@ -5,6 +5,17 @@ from collections import deque
 
 def plot_serial_data(port):
     # Set the background color using hex code
+
+    width_px = 1000
+    height_px = 600
+
+    # Dots per inch (DPI)
+    dpi = 100
+
+    # Calculate figure size in inches
+    figsize = (width_px / dpi, height_px / dpi)
+
+    # Create a figure with the specified size
     plt.rcParams['figure.facecolor'] = '#2E2E2E'  # Dark grey
     plt.rcParams['axes.facecolor'] = '#2E2E2E'    # Dark grey
 
@@ -19,7 +30,7 @@ def plot_serial_data(port):
     flowrate2_data = deque(maxlen=max_len)
 
     # Initialize the plot
-    fig, ax = plt.subplots(2, 2, figsize=(10, 8))
+    fig, ax = plt.subplots(2, 2, figsize=figsize, dpi=dpi)
 
     def update_data():
         try:
@@ -55,6 +66,7 @@ def plot_serial_data(port):
         ax[0, 0].plot(pressure1_data, color='white')
         ax[0, 0].set_title('Pressure 1', color='white')
         ax[0, 0].set_ylim([-1.5, 1.5])
+        ax[0, 0].set_ylabel("mmHg", color="white")
 
         ax[0, 1].plot(pressure2_data, color='white')
         ax[0, 1].set_title('Pressure 2', color='white')
