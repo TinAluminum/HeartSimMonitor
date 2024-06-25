@@ -54,11 +54,11 @@ def plot_serial_data(port):
 
         ax[0, 0].plot(pressure1_data, color='white')
         ax[0, 0].set_title('Pressure 1', color='white')
-        ax[0, 0].set_ylim([-2, 2])
+        ax[0, 0].set_ylim([-1.5, 1.5])
 
         ax[0, 1].plot(pressure2_data, color='white')
         ax[0, 1].set_title('Pressure 2', color='white')
-        ax[0, 1].set_ylim([-2, 2])
+        ax[0, 1].set_ylim([-1.5, 1.5])
 
         ax[1, 0].plot(flowrate1_data, color='white')
         ax[1, 0].set_title('Flow Rate 1', color='white')
@@ -69,10 +69,11 @@ def plot_serial_data(port):
         ax[1, 1].set_ylim([-2, 2])
 
     # Set up the animation
-    ani = animation.FuncAnimation(fig, animate, interval=10)  # Interval is 10ms
+    ani = animation.FuncAnimation(fig, animate, interval=100)  # Interval is 10ms
 
     # Display the plot
     plt.tight_layout()
     plt.show()
 
 
+plot_serial_data('/dev/cu.usbserial-1110')
