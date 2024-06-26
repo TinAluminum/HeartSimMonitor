@@ -5,7 +5,6 @@ from collections import deque
 
 def plot_serial_data(port):
     # Set the background color using hex code
-
     width_px = 1000
     height_px = 600
 
@@ -63,22 +62,28 @@ def plot_serial_data(port):
             a.spines['left'].set_color('white')      # Set left spine to white
             a.spines['right'].set_color('white')     # Set right spine to white
 
-        ax[0, 0].plot(pressure1_data, color='white')
+        x_data = range(len(pressure1_data))
+
+        ax[0, 0].plot(x_data, pressure1_data, color='white')
         ax[0, 0].set_title('Pressure 1', color='white')
         ax[0, 0].set_ylim([-1.5, 1.5])
+        ax[0, 0].set_xlim([0, max_len])
         ax[0, 0].set_ylabel("mmHg", color="white")
 
-        ax[0, 1].plot(pressure2_data, color='white')
+        ax[0, 1].plot(x_data, pressure2_data, color='white')
         ax[0, 1].set_title('Pressure 2', color='white')
         ax[0, 1].set_ylim([-1.5, 1.5])
+        ax[0, 1].set_xlim([0, max_len])
 
-        ax[1, 0].plot(flowrate1_data, color='white')
+        ax[1, 0].plot(x_data, flowrate1_data, color='white')
         ax[1, 0].set_title('Flow Rate 1', color='white')
         ax[1, 0].set_ylim([-5, 100])
+        ax[1, 0].set_xlim([0, max_len])
 
-        ax[1, 1].plot(flowrate2_data, color='white')
+        ax[1, 1].plot(x_data, flowrate2_data, color='white')
         ax[1, 1].set_title('Flow Rate 2', color='white')
         ax[1, 1].set_ylim([-5, 100])
+        ax[1, 1].set_xlim([0, max_len])
 
     # Set up the animation
     ani = animation.FuncAnimation(fig, animate, interval=10)  # Interval is 10ms
@@ -86,6 +91,5 @@ def plot_serial_data(port):
     # Display the plot
     plt.tight_layout()
     plt.show()
-
 
 plot_serial_data('/dev/cu.usbserial-1110')
