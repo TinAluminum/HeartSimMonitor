@@ -1,159 +1,113 @@
 import tkinter as tk
-from threading import Thread
-import time
 import serial
-import pandas as pd
+import threading
+import time
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from collections import deque
-from datetime import datetime
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-class SerialPlotApp:
-    def __init__(self, root, serial_port):
-        self.root = root
-        self.root.title("Serial Plotter")
-        self.root.geometry("400x500")
-        self.serial_port = serial_port
-
-        # Current value labels
-        self.value_labels = []
-        for i in range(4):
-            label = tk.Label(root, text=f"Value {i+1}: 0.00", font=("Helvetica", 16))
-            label.pack(pady=5)
-            self.value_labels.append(label)
-
-        # Plot button
-        self.plot_button = tk.Button(root, text="Plot", command=self.start_plot)
-        self.plot_button.pack(pady=20)
-
-        # Save button
-        self.save_button = tk.Button(root, text="Save Data", command=self.save_data)
-        self.save_button.pack(pady=20)
-
-        self.running = False
-        self.serial_thread = None
-        self.ser = None
-        self.data = []
-        self.index = 0  # Initialize index for data entries
-        self.start_time = time.time()  # Record the start time
-
-        # Start serial reading thread immediately
-        self.start_serial_thread()
-
-    def update_values(self, values):
-        for i, value in enumerate(values):
-            self.value_labels[i].config(text=f"Value {i+1}: {value:.2f}")
-
-    def read_serial_data(self):
-        self.ser = serial.Serial(self.serial_port, 9600, timeout=1)
-        while self.running:
-            try:
-                line = self.ser.readline().decode('utf-8').strip()
-                if line:
-                    data = line.split(',')
-                    if len(data) == 4:
-                        values = [float(v) for v in data]
-                        self.update_values(values)
-                        self.record_data(values)
-            except Exception as e:
-                print(f"Error: {e}")
-            time.sleep(0.1)
-
-    def record_data(self, values):
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        elapsed_time = time.time() - self.start_time  # Calculate elapsed time
-        self.data.append([self.index, timestamp, elapsed_time] + values)
-        self.index += 1
-
-    def save_data(self):
-        df = pd.DataFrame(self.data, columns=['Index', 'Timestamp', 'Elapsed Time', 'Pressure 1', 'Pressure 2', 'Flow Rate 1', 'Flow Rate 2'])
-        filename = f"data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        df.to_excel(filename, index=False)
-        print(f"Data saved to {filename}")
-
-    def start_serial_thread(self):
+class ArduinoReader:
+    def __init__(self, port_name):
+        self.port_name = port_name
+        self.ser = serial.Serial(port_name, 9600)
+        time.sleep(2)  # Give some time for the connection to establish
+        self.values = [None, None, None, None]
         self.running = True
-        self.serial_thread = Thread(target=self.read_serial_data)
-        self.serial_thread.start()
 
-    def stop_serial_thread(self):
+    def read_value(self):
+        while self.running:
+            if self.ser.in_waiting > 0:
+                line = self.ser.readline().decode('utf-8').rstrip()
+                parts = line.split(',')
+                if len(parts) == 4:
+                    try:
+                        self.values = [float(part.strip()) for part in parts]
+                    except ValueError:
+                        pass  # Ignore any non-numeric values
+            time.sleep(0.1)  # Adjust the sleep time as necessary
+
+    def stop(self):
         self.running = False
-        if self.serial_thread is not None:
-            self.serial_thread.join()
-        if self.ser is not None:
+        if self.ser.is_open:
             self.ser.close()
 
-    def start_plot(self):
-        self.plot_serial_data()
+class App:
+    def __init__(self, root, arduino_reader, y_limits):
+        self.root = root
+        self.arduino_reader = arduino_reader
 
-    def plot_serial_data(self):
-        # Initialize deque for storing data
-        max_len = 20  # Maximum length of data to display
-        pressure1_data = deque(maxlen=max_len)
-        pressure2_data = deque(maxlen=max_len)
-        flowrate1_data = deque(maxlen=max_len)
-        flowrate2_data = deque(maxlen=max_len)
+        # Set background color of the Tkinter window
+        self.root.config(bg='#457b9d')
 
-        # Initialize the plot
-        fig, ax = plt.subplots(2, 2, figsize=(10, 8))
+        # Create labels for displaying the four values in a 2x2 grid
+        self.labels = []
+        self.titles = ["P1", "P2", "F1", "F2"]
+        for i, title in enumerate(self.titles):
+            frame = tk.Frame(root, bg='#457b9d', padx=5, pady=5)
+            frame.grid(row=i//2, column=i%2, padx=10, pady=10)  # 2x2 grid
+            label_title = tk.Label(frame, text=title, font=("Consolas", 25), bg='#457b9d')
+            label_title.pack(side=tk.LEFT)
+            label_value = tk.Label(frame, text="Waiting for data...", font=("Consolas", 25), width=10, height=2,
+                                   bg='white', relief='solid', borderwidth=1)
+            label_value.pack(side=tk.LEFT)
+            self.labels.append(label_value)
 
-        def update_data():
-            try:
-                line = self.ser.readline().decode('utf-8').strip()
-                if line:
-                    data = line.split(',')
-                    if len(data) == 4:
-                        pressure1 = float(data[0])
-                        pressure2 = float(data[1])
-                        flowrate1 = float(data[2])
-                        flowrate2 = float(data[3])
-                        pressure1_data.append(pressure1)
-                        pressure2_data.append(pressure2)
-                        flowrate1_data.append(flowrate1)
-                        flowrate2_data.append(flowrate2)
-            except Exception as e:
-                print(f"Error: {e}")
+        # Set up the plot with four subplots in a 2x2 grid
+        self.fig, self.axs = plt.subplots(2, 2, figsize=(5, 3))
+        self.fig.patch.set_facecolor('#457b9d')  # Set background color for the figure
+        self.lines = []
+        self.x_data = list(range(100))
+        self.y_data = [[] for _ in range(4)]
+        self.y_limits = y_limits
+        for i, ax in enumerate(self.axs.flatten()):
+            ax.set_facecolor('white')  # Set background color for the axes
+            line, = ax.plot(self.x_data, [None] * 100, '#e63946')
+            ax.grid(True)
+            ax.set_xlim(0, 99)
+            ax.set_ylim(self.y_limits[i])
+            self.lines.append(line)
 
-        def animate(i):
-            update_data()
+        self.canvas = FigureCanvasTkAgg(self.fig, master=root)
+        self.canvas.get_tk_widget().grid(row=2, column=0, columnspan=2, pady=20)
 
-            for a in ax.flat:
-                a.clear()
-                a.set_facecolor('#2E2E2E')  # Set axes background to dark grey
-                a.grid(True, color='white', linestyle='--', linewidth=0.5)  # Add grid with white color
-                a.tick_params(axis='x', colors='white')  # Set x-axis ticks to white
-                a.tick_params(axis='y', colors='white')  # Set y-axis ticks to white
-                a.spines['bottom'].set_color('white')    # Set bottom spine to white
-                a.spines['top'].set_color('white')       # Set top spine to white
-                a.spines['left'].set_color('white')      # Set left spine to white
-                a.spines['right'].set_color('white')     # Set right spine to white
+        self.update_labels()
+        self.update_plot()
 
-            ax[0, 0].plot(pressure1_data, color='white')
-            ax[0, 0].set_title('Pressure 1', color='white')
-            ax[0, 0].set_ylim([-2, 2])
+    def update_labels(self):
+        for i, value in enumerate(self.arduino_reader.values):
+            if value is not None:
+                self.labels[i].config(text=f"{value:.2f}")
+        self.root.after(100, self.update_labels)
 
-            ax[0, 1].plot(pressure2_data, color='white')
-            ax[0, 1].set_title('Pressure 2', color='white')
-            ax[0, 1].set_ylim([-2, 2])
+    def update_plot(self):
+        if all(value is not None for value in self.arduino_reader.values):
+            for i, value in enumerate(self.arduino_reader.values):
+                self.y_data[i].append(value)
+                if len(self.y_data[i]) > 100:
+                    self.y_data[i].pop(0)
+                self.lines[i].set_ydata(self.y_data[i] + [None] * (100 - len(self.y_data[i])))
+            self.canvas.draw()
+        self.root.after(100, self.update_plot)
 
-            ax[1, 0].plot(flowrate1_data, color='white')
-            ax[1, 0].set_title('Flow Rate 1', color='white')
-            ax[1, 0].set_ylim([-2, 2])
+def main():
+    port_name = '/dev/cu.usbserial-1110'  # Replace with your actual port name
 
-            ax[1, 1].plot(flowrate2_data, color='white')
-            ax[1, 1].set_title('Flow Rate 2', color='white')
-            ax[1, 1].set_ylim([-2, 2])
+    arduino_reader = ArduinoReader(port_name)
+    threading.Thread(target=arduino_reader.read_value, daemon=True).start()
 
-        # Set up the animation
-        ani = animation.FuncAnimation(fig, animate, interval=10)  # Interval is 10ms
+    root = tk.Tk()
+    root.title("Arduino Data Display with Live Plot")
 
-        # Display the plot
-        plt.tight_layout()
-        plt.show()
+    # Set custom y-axis limits for each plot
+    y_limits = [(-3, 3), (-3, 3), (0, 10), (0, 10)]  # Replace with your desired limits
+
+    app = App(root, arduino_reader, y_limits)
+
+    def on_closing():
+        arduino_reader.stop()
+        root.destroy()
+
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+    root.mainloop()
 
 if __name__ == "__main__":
-    serial_port = '/dev/cu.usbserial-1110'  # Define your serial port here
-    root = tk.Tk()
-    app = SerialPlotApp(root, serial_port)
-    root.protocol("WM_DELETE_WINDOW", app.stop_serial_thread)
-    root.mainloop()
+    main()
