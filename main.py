@@ -7,6 +7,7 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
+import pandas as pd
 
 
 class ArduinoReader:
@@ -71,7 +72,7 @@ class App:
             self.mean_labels.append(label_mean_value)
 
         # Set up the plot with four subplots in a 2x2 grid
-        self.fig, self.axs = plt.subplots(2, 2, figsize=(15, 6))
+        self.fig, self.axs = plt.subplots(2, 2, figsize=(15, 4))
         self.fig.patch.set_facecolor('#457b9d')  # Set background color for the figure
         self.lines = []
         self.x_data = list(range(100))
@@ -90,6 +91,35 @@ class App:
 
         self.update_labels()
         self.update_plot()
+
+        self.new_button = tk.Button(root, text="Export session data", font=("Consolas", 15), command=self.export_to_excel)
+        self.new_button.grid(row=4, column=0, columnspan=8, pady=10)
+
+        self.update_labels()
+        self.update_plot()
+
+    def export_to_excel(self):
+        print("Converting to excel")
+
+        filename = "Output.xlsx"
+        # Generate time data
+        time = [i * 0.1 for i in range(len(self.y_data[0]))]
+
+        # Create a dictionary with the data
+        data_dict = {
+            'Time (s)': time,
+            'P1': self.y_data[0],
+            'P2': self.y_data[1],
+            'F1': self.y_data[2],
+            'F2': self.y_data[3]
+        }
+
+        # Create a DataFrame
+        df = pd.DataFrame(data_dict)
+
+        # Save to Excel file
+        df.to_excel(filename, index=False)
+
 
     def scale_value(self, value, original_range, new_range):
         return ((value - original_range[0]) / (original_range[1] - original_range[0])) * (new_range[1] - new_range[0]) + new_range[0]
