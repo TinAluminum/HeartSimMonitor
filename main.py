@@ -36,9 +36,10 @@ class ArduinoReader:
 
 
 class App:
-    def __init__(self, root, arduino_reader, y_limits):
+    def __init__(self, root, arduino_reader, y_limits, value_ranges):
         self.root = root
         self.arduino_reader = arduino_reader
+        self.value_ranges = value_ranges
 
         # Set background color of the Tkinter window
         self.root.config(bg='#457b9d')
@@ -47,7 +48,6 @@ class App:
         self.labels = []
         self.mean_labels = []
         self.titles = ["P1", "P2", "F1", "F2"]
-        self.conversion_factor = 51.7149
         for i, title in enumerate(self.titles):
             # Current value labels
             frame = tk.Frame(root, bg='#457b9d', padx=5, pady=5)
@@ -91,25 +91,21 @@ class App:
         self.update_labels()
         self.update_plot()
 
+    def scale_value(self, value, original_range, new_range):
+        return ((value - original_range[0]) / (original_range[1] - original_range[0])) * (new_range[1] - new_range[0]) + new_range[0]
+
     def update_labels(self):
         for i, value in enumerate(self.arduino_reader.values):
             if value is not None:
-                if i < 2:  # Convert P1 and P2 from PSI to mmHg
-                    value_mmHg = value * self.conversion_factor
-                    self.labels[i].config(text=f"{value_mmHg:.2f} mmHg")
-                    self.y_data[i].append(value_mmHg)
-                else:
-                    self.labels[i].config(text=f"{value:.2f}")
-                    self.y_data[i].append(value)
+                scaled_value = self.scale_value(value, self.value_ranges[self.titles[i]]['original'], self.value_ranges[self.titles[i]]['new'])
+                self.labels[i].config(text=f"{scaled_value:.2f}")
+                self.y_data[i].append(scaled_value)
 
                 if len(self.y_data[i]) > 100:
                     self.y_data[i].pop(0)
 
                 mean_value = np.mean(self.y_data[i])
-                if i < 2:  # Display mean in mmHg
-                    self.mean_labels[i].config(text=f"{mean_value:.2f} mmHg")
-                else:
-                    self.mean_labels[i].config(text=f"{mean_value:.2f}")
+                self.mean_labels[i].config(text=f"{mean_value:.2f}")
 
         self.root.after(100, self.update_labels)
 
@@ -129,9 +125,17 @@ def main_app(port_name):
     root.title("Arduino Data Display with Live Plot")
 
     # Set custom y-axis limits for each plot
-    y_limits = [(0, 200), (0, 200), (0, 10), (0, 10)]  # Updated limits for P1 and P2 in mmHg
+    y_limits = [(0, 200), (0, 200), (0, 10), (0, 10)]  # Updated limits for P1 and P2 in new range
 
-    app = App(root, arduino_reader, y_limits)
+    # Define the original and new ranges for each value
+    value_ranges = {
+        "P1": {"original": (0, 0.2), "new": (0, 200)},
+        "P2": {"original": (0, 0.2), "new": (0, 200)},
+        "F1": {"original": (0, 10), "new": (0, 10)},
+        "F2": {"original": (0, 10), "new": (0, 10)}
+    }
+
+    app = App(root, arduino_reader, y_limits, value_ranges)
 
     def on_closing():
         arduino_reader.stop()

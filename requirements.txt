@@ -1,0 +1,4 @@
+matplotlib==3.9.1
+numpy==2.0.0
+pyserial==3.5
+pyserial_asyncio==0.6
